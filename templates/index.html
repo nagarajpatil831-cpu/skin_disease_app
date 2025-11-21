@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <style>
+        body {
+  font-family: 'Segoe UI', sans-serif;
+  background: linear-gradient(135deg, #74ABE2, #5563DE);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  margin: 0;
+  color: #fff;
+}
+
+.container {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  padding: 40px;
+  border-radius: 20px;
+  width: 400px;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+
+h1 {
+  margin-bottom: 10px;
+}
+
+.upload-section {
+  margin: 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+button {
+  padding: 10px;
+  border: none;
+  border-radius: 10px;
+  background-color: #fff;
+  color: #333;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+button:hover {
+  background-color: #ffd166;
+  color: #000;
+}
+
+#preview, #camera {
+  margin-top: 15px;
+  width: 100%;
+  border-radius: 10px;
+}
+
+.loader {
+  border: 6px solid #f3f3f3;
+  border-top: 6px solid #ffcc00;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  margin: 20px auto;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+#result {
+  margin-top: 15px;
+  font-size: 18px;
+  color: #00ffb3;
+  font-weight: bold;
+}
+
+    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Skin Disease Detector</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+  <div class="container">
+    <h1>🩺 Smart Skin Disease Detector</h1>
+    <p>Upload or capture a skin image to predict the disease</p>
+
+    <div class="upload-section">
+      <input type="file" id="imageInput" accept="image/*">
+      <button id="cameraBtn">📷 Use Camera</button>
+      <button id="predictBtn">🔍 Predict</button>
+    </div>
+
+    <div class="preview-section">
+      <video id="camera" autoplay style="display:none;"></video>
+      <img id="preview" src="" alt="Preview" style="display:none;">
+      <canvas id="canvas" style="display:none;"></canvas>
+      <div id="loader" class="loader" style="display:none;"></div>
+      <h2 id="result"></h2>
+    </div>
+  </div>
+
+  <script>
+    const imageInput = document.getElementById('imageInput');
+    const cameraBtn = document.getElementById('cameraBtn');
+    const predictBtn = document.getElementById('predictBtn');
+    const preview = document.getElementById('preview');
+    const camera = document.getElementById('camera');
+    const canvas = document.getElementById('canvas');
+    const loader = document.getElementById('loader');
+    const result = document.getElementById('result');
+
+    let selectedFile = null;
+    let usingCamera = false;
+
+    // Image upload preview
+    imageInput.addEventListener('change', e => {
+      selectedFile = e.target.files[0];
+      if (selectedFile) {
+        const reader = new FileReader();
+        reader.onload = event => {
+          preview.src = event.target.result;
+          preview.style.display = 'block';
+          camera.style.display = 'none';
+        };
+        reader.readAsDataURL(selectedFile);
+      }
+    });
+
+    // Camera capture
+    cameraBtn.addEventListener('click', async () => {
+      usingCamera = !usingCamera;
+      if (usingCamera) {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        camera.srcObject = stream;
+        camera.style.display = 'block';
+        preview.style.display = 'none';
+        cameraBtn.textContent = "🛑 Stop Camera";
+      } else {
+        camera.srcObject.getTracks().forEach(track => track.stop());
+        camera.style.display = 'none';
+        cameraBtn.textContent = "📷 Use Camera";
+      }
+    });
+
+    // Prediction
+    predictBtn.addEventListener('click', async () => {
+      result.textContent = "";
+      loader.style.display = 'block';
+
+      let response;
+      if (usingCamera) {
+        const ctx = canvas.getContext('2d');
+        canvas.width = camera.videoWidth;
+        canvas.height = camera.videoHeight;
+        ctx.drawImage(camera, 0, 0);
+        const dataURL = canvas.toDataURL('image/jpeg');
+        response = await fetch("/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ image: dataURL })
+        });
+      } else if (selectedFile) {
+        const formData = new FormData();
+        formData.append("image", selectedFile);
+        response = await fetch("/predict", { method: "POST", body: formData });
+      } else {
+        alert("Please upload an image or enable camera!");
+        loader.style.display = 'none';
+        return;
+      }
+
+      const data = await response.json();
+      loader.style.display = 'none';
+      result.textContent = "✅ Prediction: " + data.prediction;
+    });
+  </script>
+</body>
+</html>
