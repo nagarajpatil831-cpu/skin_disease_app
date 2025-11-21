@@ -1,0 +1,6 @@
+flask
+passlib
+mysql-connector-python
+flask-mail
+python-dotenv
+flask-session
